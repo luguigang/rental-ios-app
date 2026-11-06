@@ -116,8 +116,8 @@ jobs:
           for _ in range(40):
               try:
                   _, info = api('GET', f'/v1/profiles/{profile_resource_id}')
-                  status_now = info['data']['attributes']['profileStatus']
-                  print('profileStatus:', status_now)
+                  status_now = info['data']['attributes'].get('profileState') or info['data']['attributes'].get('profileStatus')
+                  print('profileState:', status_now)
                   if status_now == 'ACTIVE':
                       break
               except Exception as poll_err:
