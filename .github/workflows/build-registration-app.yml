@@ -1,0 +1,115 @@
+name: 打包iOS登记APP
+
+on:
+  workflow_dispatch:
+    inputs:
+      marketing_version:
+        description: 'APP 版本号（默认 1.0.0，改版时递增如 1.0.1）'
+        required: false
+        default: '1.0.0'
+
+env:
+  APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+  ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
+  ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+  KEYCHAIN_PASSWORD: github-actions-keychain
+
+jobs:
+  build:
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: ios/RegistrationApp
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 生成 Xcode 工程（xcodegen）
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: 准备 App Store Connect API 密钥
+        run: |
+          mkdir -p private_keys
+          echo "${{ secrets.ASC_KEY_P8_BASE64 }}" | base64 --decode > "private_keys/AuthKey_${ASC_KEY_ID}.p8"
+
+      - name: 导入签名证书
+        env:
+          BUILD_CERT_P12_BASE64: ${{ secrets.BUILD_CERT_P12_BASE64 }}
+          BUILD_CERT_PASSWORD: ${{ secrets.BUILD_CERT_PASSWORD }}
+        run: |
+          CERT_PATH="$RUNNER_TEMP/build_cert.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain"
+          echo "$BUILD_CERT_P12_BASE64" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$BUILD_CERT_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+
+      - name: 生成导出配置
+        run: |
+          cat > ExportOptions.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+            <key>method</key>
+            <string>app-store</string>
+            <key>teamID</key>
+            <string>TEAM_ID_PLACEHOLDER</string>
+            <key>uploadSymbols</key>
+            <true/>
+            <key>manageAppVersionAndBuildNumber</key>
+            <true/>
+          </dict>
+          </plist>
+          EOF
+          sed -i '' "s/TEAM_ID_PLACEHOLDER/${APPLE_TEAM_ID}/" ExportOptions.plist
+
+      - name: 编译归档（自动签名）
+        run: |
+          xcodebuild archive \
+            -project RentalRegistration.xcodeproj \
+            -scheme RentalRegistration \
+            -configuration Release \
+            -archivePath build/RentalRegistration.xcarchive \
+            -destination "generic/platform=iOS" \
+            DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
+            CODE_SIGN_STYLE=Automatic \
+            MARKETING_VERSION="${{ github.event.inputs.marketing_version }}" \
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
+            -authenticationKeyPath "private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "${ASC_KEY_ID}" \
+            -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
+            -allowProvisioningUpdates
+
+      - name: 导出 ipa
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/RentalRegistration.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath build \
+            -authenticationKeyPath "private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyID "${ASC_KEY_ID}" \
+            -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
+            -allowProvisioningUpdates
+          ls -lh build/
+
+      - name: 上传构建产物（GitHub 工件，无论上传商店成功与否都可下载）
+        uses: actions/upload-artifact@v4
+        with:
+          name: registration-app-ipa
+          path: ios/RegistrationApp/build/*.ipa
+          retention-days: 30
+
+      - name: 上传 App Store Connect
+        run: |
+          xcrun altool --upload-app \
+            -f build/*.ipa \
+            -t ios \
+            --apiKey "${ASC_KEY_ID}" \
+            --apiIssuer "${ASC_ISSUER_ID}"

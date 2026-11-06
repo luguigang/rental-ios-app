@@ -1,0 +1,36 @@
+name: RentalRegistration
+options:
+  bundleIdPrefix: com.ztengyun.rental
+  deploymentTarget:
+    iOS: "14.0"
+  createIntermediateGroups: true
+
+targets:
+  RentalRegistration:
+    type: application
+    platform: iOS
+    sources:
+      - path: .
+        excludes:
+          - "project.yml"
+          - "ExportOptions.plist"
+          - "build/**"
+          - "private_keys/**"
+    info:
+      path: Info.plist
+      properties:
+        CFBundleDisplayName: 设备客户登记
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        # 出口合规：APP 只做内网登记页展示，不使用加密算法，免年度出口合规申报
+        ITSAppUsesNonExemptEncryption: false
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ztengyun.rental.registration
+        CODE_SIGN_STYLE: Automatic
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"
+        GENERATE_INFOPLIST_FILE: NO
