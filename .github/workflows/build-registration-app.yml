@@ -82,7 +82,7 @@ jobs:
             CODE_SIGN_STYLE=Automatic \
             MARKETING_VERSION="${{ github.event.inputs.marketing_version }}" \
             CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            -authenticationKeyPath "private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyPath "$(pwd)/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
             -authenticationKeyID "${ASC_KEY_ID}" \
             -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
             -allowProvisioningUpdates
@@ -93,7 +93,7 @@ jobs:
             -archivePath build/RentalRegistration.xcarchive \
             -exportOptionsPlist ExportOptions.plist \
             -exportPath build \
-            -authenticationKeyPath "private_keys/AuthKey_${ASC_KEY_ID}.p8" \
+            -authenticationKeyPath "$(pwd)/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
             -authenticationKeyID "${ASC_KEY_ID}" \
             -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
             -allowProvisioningUpdates
