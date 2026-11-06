@@ -39,7 +39,7 @@ struct RegistrationWebView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate {
-        let lastReloadToken: UUID
+        var lastReloadToken: UUID
 
         init(lastReloadToken: UUID) {
             self.lastReloadToken = lastReloadToken
