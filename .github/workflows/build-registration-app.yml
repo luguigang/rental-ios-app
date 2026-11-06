@@ -109,40 +109,27 @@ jobs:
           profile_resource_id = resp['data']['id']
           print('profile created:', profile_name)
 
-          # 下载描述文件内容（苹果异步生成：先轮询状态到 ACTIVE，再取内容）
+          # 描述文件内容直接在 profile 对象的 profileContent 属性里（无需单独下载端点）
           import time as _t
-          uuid = None
-          content = None
-          for _ in range(40):
-              try:
-                  _, info = api('GET', f'/v1/profiles/{profile_resource_id}')
-                  status_now = info['data']['attributes'].get('profileState') or info['data']['attributes'].get('profileStatus')
-                  print('profileState:', status_now)
-                  if status_now == 'ACTIVE':
-                      break
-              except Exception as poll_err:
-                  print('poll err:', str(poll_err)[:200])
-              _t.sleep(6)
-          for _ in range(10):
-              try:
-                  req = urllib.request.Request(
-                      'https://api.appstoreconnect.apple.com' + f'/v1/profiles/{profile_resource_id}/profile',
-                      headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'})
-                  with urllib.request.urlopen(req) as dl:
-                      raw = dl.read()
-                  if raw[:1] == b'{':
-                      resp = json.loads(raw)
-                      content = base64.b64decode(resp['data']['attributes']['profileContent'])
-                      uuid = resp['data']['attributes']['uuid']
-                  else:
-                      content = raw
-                      uuid = profile_resource_id
-                  break
-              except urllib.error.HTTPError as e:
-                  print('download err:', e.code)
+          attrs = resp['data']['attributes']
+          content_b64 = attrs.get('profileContent')
+          uuid = attrs.get('uuid')
+          if not content_b64:
+              for _ in range(20):
+                  try:
+                      _, info = api('GET', f'/v1/profiles/{profile_resource_id}')
+                      attrs = info['data']['attributes']
+                      content_b64 = attrs.get('profileContent')
+                      uuid = attrs.get('uuid')
+                      if content_b64:
+                          break
+                  except Exception as poll_err:
+                      print('poll err:', str(poll_err)[:200])
+                  print('等待 profileContent 就绪…')
                   _t.sleep(5)
-          assert content, '描述文件下载失败'
-          print('profile uuid:', uuid)
+          assert content_b64, '未取到 profileContent'
+          content = base64.b64decode(content_b64)
+          print('profile uuid:', uuid, 'bytes:', len(content))
 
           prof_dir = os.path.expanduser('~/Library/MobileDevice/Provisioning Profiles')
           os.makedirs(prof_dir, exist_ok=True)
