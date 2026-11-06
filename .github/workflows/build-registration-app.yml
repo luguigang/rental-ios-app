@@ -12,6 +12,7 @@ env:
   APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
   ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
   ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
+  BUNDLE_ID: com.ztengyun.rental.registration
   KEYCHAIN_PASSWORD: github-actions-keychain
 
 jobs:
@@ -50,6 +51,79 @@ jobs:
           security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
           security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
 
+      - name: 通过 ASC API 生成 App Store 描述文件（手动签名，无需真机）
+        run: |
+          pip3 install --quiet pyjwt cryptography
+          python3 <<'PYEOF'
+          import base64, json, os, time, urllib.error, urllib.request
+          import jwt
+
+          KEY_ID = os.environ['ASC_KEY_ID']
+          ISSUER = os.environ['ASC_ISSUER_ID']
+          TEAM = os.environ['APPLE_TEAM_ID']
+          BUNDLE = os.environ['BUNDLE_ID']
+          KEY_FILE = os.path.join(os.getcwd(), 'private_keys', f'AuthKey_{KEY_ID}.p8')
+
+          token = jwt.encode(
+              {'iss': ISSUER, 'iat': int(time.time()), 'exp': int(time.time()) + 1200,
+               'aud': 'appstoreconnect-v1'},
+              open(KEY_FILE).read(), algorithm='ES256',
+              headers={'kid': KEY_ID, 'typ': 'JWT'})
+
+          def api(method, path, payload=None):
+              req = urllib.request.Request('https://api.appstoreconnect.apple.com' + path,
+                                           method=method,
+                                           data=json.dumps(payload).encode() if payload else None,
+                                           headers={'Authorization': 'Bearer ' + token,
+                                                    'Content-Type': 'application/json',
+                                                    'Accept': 'application/json'})
+              try:
+                  with urllib.request.urlopen(req) as resp:
+                      return resp.status, json.loads(resp.read() or b'{}')
+              except urllib.error.HTTPError as e:
+                  body = e.read().decode()
+                  print(f'API {method} {path} -> {e.code}: {body[:500]}')
+                  raise
+
+          # Bundle ID 资源 id
+          _, resp = api('GET', f'/v1/bundleIds?filter[identifier]={BUNDLE}')
+          bundle_id = resp['data'][0]['id']
+          print('bundleId resource:', bundle_id)
+
+          # Apple Distribution 证书资源 id（取第一张分发证书）
+          _, resp = api('GET', '/v1/certificates?filter[certificateType]=DISTRIBUTION&limit=10')
+          certs = resp['data']
+          assert certs, '没有找到 Apple Distribution 证书'
+          cert_id = certs[0]['id']
+          print('certificate resource:', cert_id, certs[0]['attributes']['name'])
+
+          # 创建 App Store 描述文件（重跑时名字冲突则带时间戳）
+          suffix = str(int(time.time()))[-6:]
+          profile_name = f'RentalRegistration-CI-{suffix}'
+          _, resp = api('POST', '/v1/profiles', {
+              'data': {'type': 'profiles',
+                       'attributes': {'name': profile_name, 'profileType': 'IOS_APP_STORE'},
+                       'relationships': {
+                           'bundleId': {'data': {'type': 'bundleIds', 'id': bundle_id}},
+                           'certificates': {'data': [{'type': 'certificates', 'id': cert_id}]}}}})
+          profile_resource_id = resp['data']['id']
+          print('profile created:', profile_name)
+
+          # 下载描述文件内容
+          _, resp = api('GET', f'/v1/profiles/{profile_resource_id}/profile')
+          content = base64.b64decode(resp['data']['attributes']['profileContent'])
+          uuid = resp['data']['attributes']['uuid']
+
+          prof_dir = os.path.expanduser('~/Library/MobileDevice/Provisioning Profiles')
+          os.makedirs(prof_dir, exist_ok=True)
+          with open(os.path.join(prof_dir, f'{uuid}.mobileprovision'), 'wb') as f:
+              f.write(content)
+          print('profile uuid:', uuid)
+
+          with open(os.environ['GITHUB_ENV'], 'a') as f:
+              f.write(f'PROFILE_UUID={uuid}\n')
+          PYEOF
+
       - name: 生成导出配置
         run: |
           cat > ExportOptions.plist <<'EOF'
@@ -61,6 +135,13 @@ jobs:
             <string>app-store</string>
             <key>teamID</key>
             <string>TEAM_ID_PLACEHOLDER</string>
+            <key>signingStyle</key>
+            <string>manual</string>
+            <key>provisioningProfiles</key>
+            <dict>
+              <key>BUNDLE_ID_PLACEHOLDER</key>
+              <string>PROFILE_UUID_PLACEHOLDER</string>
+            </dict>
             <key>uploadSymbols</key>
             <true/>
             <key>manageAppVersionAndBuildNumber</key>
@@ -69,8 +150,10 @@ jobs:
           </plist>
           EOF
           sed -i '' "s/TEAM_ID_PLACEHOLDER/${APPLE_TEAM_ID}/" ExportOptions.plist
+          sed -i '' "s/BUNDLE_ID_PLACEHOLDER/${BUNDLE_ID}/" ExportOptions.plist
+          sed -i '' "s/PROFILE_UUID_PLACEHOLDER/${PROFILE_UUID}/" ExportOptions.plist
 
-      - name: 编译归档（自动签名）
+      - name: 编译归档（手动签名）
         run: |
           xcodebuild archive \
             -project RentalRegistration.xcodeproj \
@@ -79,13 +162,11 @@ jobs:
             -archivePath build/RentalRegistration.xcarchive \
             -destination "generic/platform=iOS" \
             DEVELOPMENT_TEAM="${APPLE_TEAM_ID}" \
-            CODE_SIGN_STYLE=Automatic \
+            CODE_SIGN_STYLE=Manual \
+            CODE_SIGN_IDENTITY="Apple Distribution" \
+            PROVISIONING_PROFILE_SPECIFIER="${PROFILE_UUID}" \
             MARKETING_VERSION="${{ github.event.inputs.marketing_version }}" \
-            CURRENT_PROJECT_VERSION="${{ github.run_number }}" \
-            -authenticationKeyPath "$(pwd)/private_keys/AuthKey_${ASC_KEY_ID}.p8" \
-            -authenticationKeyID "${ASC_KEY_ID}" \
-            -authenticationKeyIssuerID "${ASC_ISSUER_ID}" \
-            -allowProvisioningUpdates
+            CURRENT_PROJECT_VERSION="${{ github.run_number }}"
 
       - name: 导出 ipa
         run: |
