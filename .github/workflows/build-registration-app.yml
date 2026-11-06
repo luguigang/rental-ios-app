@@ -109,22 +109,40 @@ jobs:
           profile_resource_id = resp['data']['id']
           print('profile created:', profile_name)
 
-          # 下载描述文件内容（苹果异步生成，刚创建就下载可能 404，需等待重试）
+          # 下载描述文件内容（苹果异步生成：先轮询状态到 ACTIVE，再取内容）
           import time as _t
-          resp = None
-          for _ in range(20):
+          uuid = None
+          content = None
+          for _ in range(40):
               try:
-                  _, resp = api('GET', f'/v1/profiles/{profile_resource_id}/profile')
+                  _, info = api('GET', f'/v1/profiles/{profile_resource_id}')
+                  status_now = info['data']['attributes']['profileStatus']
+                  print('profileStatus:', status_now)
+                  if status_now == 'ACTIVE':
+                      break
+              except Exception as poll_err:
+                  print('poll err:', str(poll_err)[:200])
+              _t.sleep(6)
+          for _ in range(10):
+              try:
+                  req = urllib.request.Request(
+                      'https://api.appstoreconnect.apple.com' + f'/v1/profiles/{profile_resource_id}/profile',
+                      headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/json'})
+                  with urllib.request.urlopen(req) as dl:
+                      raw = dl.read()
+                  if raw[:1] == b'{':
+                      resp = json.loads(raw)
+                      content = base64.b64decode(resp['data']['attributes']['profileContent'])
+                      uuid = resp['data']['attributes']['uuid']
+                  else:
+                      content = raw
+                      uuid = profile_resource_id
                   break
               except urllib.error.HTTPError as e:
-                  if e.code == 404:
-                      print('profile 尚未生成，5 秒后重试…')
-                      _t.sleep(5)
-                      continue
-                  raise
-          assert resp, '描述文件生成等待超时'
-          content = base64.b64decode(resp['data']['attributes']['profileContent'])
-          uuid = resp['data']['attributes']['uuid']
+                  print('download err:', e.code)
+                  _t.sleep(5)
+          assert content, '描述文件下载失败'
+          print('profile uuid:', uuid)
 
           prof_dir = os.path.expanduser('~/Library/MobileDevice/Provisioning Profiles')
           os.makedirs(prof_dir, exist_ok=True)
