@@ -109,8 +109,20 @@ jobs:
           profile_resource_id = resp['data']['id']
           print('profile created:', profile_name)
 
-          # 下载描述文件内容
-          _, resp = api('GET', f'/v1/profiles/{profile_resource_id}/profile')
+          # 下载描述文件内容（苹果异步生成，刚创建就下载可能 404，需等待重试）
+          import time as _t
+          resp = None
+          for _ in range(20):
+              try:
+                  _, resp = api('GET', f'/v1/profiles/{profile_resource_id}/profile')
+                  break
+              except urllib.error.HTTPError as e:
+                  if e.code == 404:
+                      print('profile 尚未生成，5 秒后重试…')
+                      _t.sleep(5)
+                      continue
+                  raise
+          assert resp, '描述文件生成等待超时'
           content = base64.b64decode(resp['data']['attributes']['profileContent'])
           uuid = resp['data']['attributes']['uuid']
 
