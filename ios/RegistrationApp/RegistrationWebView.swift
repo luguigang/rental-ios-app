@@ -23,14 +23,23 @@ struct RegistrationWebView: UIViewRepresentable {
         webView.isOpaque = true
         webView.scrollView.contentInsetAdjustmentBehavior = .never
         webView.navigationDelegate = context.coordinator
-        webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+        load(url: url, into: webView)
         return webView
     }
 
     func updateUIView(_ uiView: WKWebView, context: Context) {
         if context.coordinator.lastReloadToken != reloadToken {
             context.coordinator.lastReloadToken = reloadToken
-            uiView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
+            load(url: url, into: uiView)
+        }
+    }
+
+    /// 支持远程 https 页面（MDM 注入登记页）和本地 bundle 演示页（审核兜底）。
+    private func load(url: URL, into webView: WKWebView) {
+        if url.isFileURL {
+            webView.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+        } else {
+            webView.load(URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData))
         }
     }
 

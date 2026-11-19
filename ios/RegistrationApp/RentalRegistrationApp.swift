@@ -32,10 +32,20 @@ struct RegistrationContainerView: View {
     /// MDM 可能先装 APP、后补配置（ABM 自动安装时常见），定时重读配置。
     private let configTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
 
+    /// App Store 审核（自定 APP）要求审核员能独立运行 APP：
+    /// 设备没有 MDM 注入配置时，加载内置的本地演示登记页（不依赖网络/服务端）。
+    private static let demoPageURL: URL? = Bundle.main
+        .url(forResource: "RegistrationDemo", withExtension: "html")
+
     var body: some View {
         Group {
             if config.isReady, let urlString = config.registerUrl, let url = URL(string: urlString) {
                 RegistrationWebView(url: url, reloadToken: reloadToken)
+                    .ignoresSafeArea()
+            } else if let demoURL = Self.demoPageURL {
+                // 审核/无 MDM 环境兜底：加载本地演示页展示完整登记交互。
+                // 真实设备稍后配置到位时，refreshConfigIfNeeded 会切回正式登记页。
+                RegistrationWebView(url: demoURL, reloadToken: reloadToken)
                     .ignoresSafeArea()
             } else {
                 waitingView

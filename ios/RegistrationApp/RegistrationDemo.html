@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="theme-color" content="#070c1a">
+<title>设备客户登记 · 功能演示</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { min-height: 100%; }
+body {
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: #060a16;
+  color: #e8f0ff;
+  padding: 22px 16px 40px;
+  position: relative;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+body::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -2;
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(46,110,255,.32), transparent 62%),
+    radial-gradient(760px 460px at 92% 4%, rgba(0,214,255,.20), transparent 60%),
+    radial-gradient(700px 520px at 50% 108%, rgba(88,64,255,.20), transparent 62%),
+    linear-gradient(180deg, #070c1b 0%, #050810 55%, #04060d 100%);
+}
+body::after {
+  content: '';
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(120,170,255,.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(120,170,255,.055) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(circle at 50% 30%, rgba(0,0,0,.9), transparent 78%);
+  -webkit-mask-image: radial-gradient(circle at 50% 30%, rgba(0,0,0,.9), transparent 78%);
+}
+.card {
+  position: relative;
+  background: linear-gradient(160deg, rgba(30,52,102,.55), rgba(14,22,44,.72));
+  border: 1px solid rgba(110,165,255,.16);
+  border-radius: 18px;
+  padding: 20px 18px;
+  margin-bottom: 14px;
+  box-shadow: 0 18px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(180,215,255,.10);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  animation: rise .45s ease both;
+}
+.card::before {
+  content: '';
+  position: absolute; top: 0; left: 18px; right: 18px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(90,190,255,.55), transparent);
+}
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+.brand { text-align: center; padding: 6px 0 4px; }
+.brand .chip {
+  display: inline-block; font-family: "SF Mono", Menlo, Consolas, monospace;
+  font-size: 10px; letter-spacing: 2.6px; color: #6fc8ff;
+  border: 1px solid rgba(90,190,255,.35); border-radius: 999px;
+  padding: 4px 12px; margin-bottom: 14px;
+  background: rgba(60,150,255,.10);
+}
+.brand .t {
+  font-size: 23px; font-weight: 600; letter-spacing: 1.5px;
+  background: linear-gradient(92deg, #eaf4ff 8%, #7fd4ff 55%, #6f9dff 96%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.brand .s { font-size: 13px; color: #8ba0c4; margin-top: 8px; letter-spacing: .3px; }
+.demo-strip {
+  display: flex; gap: 8px; align-items: flex-start;
+  font-size: 12px; color: #ffd79a; line-height: 1.7;
+  padding: 10px 12px; border-radius: 10px; margin-bottom: 14px;
+  background: rgba(255,190,70,.10); border: 1px solid rgba(255,200,90,.30);
+}
+.demo-strip b { color: #ffbe3d; font-weight: 600; flex: none; }
+.sec-title {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; letter-spacing: 1.6px; color: #7f97bd; margin-bottom: 6px;
+}
+.sec-title::before {
+  content: ''; width: 3px; height: 12px; border-radius: 2px;
+  background: linear-gradient(180deg, #4fc3ff, #3d6dff);
+  box-shadow: 0 0 10px rgba(80,190,255,.75);
+}
+.info-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 11px 0; font-size: 14px;
+  border-bottom: 1px solid rgba(140,180,255,.09);
+}
+.info-row:last-child { border-bottom: none; padding-bottom: 2px; }
+.info-row .k { color: #8092b4; font-size: 13px; }
+.info-row .v {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+  color: #dcebff; font-size: 13.5px; letter-spacing: .4px;
+  text-align: right; max-width: 64%; word-break: break-all;
+}
+label {
+  display: flex; align-items: center;
+  font-size: 13px; color: #9fb3d6; margin: 18px 0 9px; letter-spacing: .3px;
+}
+label b { color: #ff7285; font-weight: 400; margin-right: 4px; font-size: 14px; }
+input {
+  width: 100%; height: 48px;
+  border: 1px solid rgba(120,165,255,.22);
+  border-radius: 13px; padding: 0 15px;
+  font-size: 17px; color: #ecf4ff; outline: none;
+  background: rgba(200,225,255,.055);
+  transition: border-color .18s, box-shadow .18s, background .18s;
+}
+input::placeholder { color: #5d6f92; font-size: 15px; }
+input:focus {
+  border-color: rgba(90,170,255,.85);
+  background: rgba(120,180,255,.10);
+  box-shadow: 0 0 0 3px rgba(70,140,255,.16), 0 0 18px rgba(60,150,255,.18);
+}
+.tip {
+  display: flex; gap: 8px;
+  font-size: 12px; color: #7186a8; margin-top: 16px; line-height: 1.7;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(90,150,255,.07); border: 1px solid rgba(110,165,255,.10);
+}
+.tip::before { content: 'i'; font-family: serif; font-style: italic; color: #5eb6ff; flex: none; }
+.btn {
+  width: 100%; height: 50px; margin-top: 24px;
+  border: none; border-radius: 14px;
+  background: linear-gradient(96deg, #2f7bff 0%, #12a5ff 52%, #00d3ff 100%);
+  color: #fff; font-size: 16.5px; font-weight: 600; letter-spacing: 3px;
+  box-shadow: 0 12px 28px rgba(20,140,255,.35), inset 0 1px 0 rgba(255,255,255,.28);
+  transition: transform .12s, box-shadow .2s, opacity .2s;
+}
+.btn:active { transform: scale(.985); box-shadow: 0 6px 16px rgba(20,140,255,.30); }
+.btn:disabled { opacity: .55; box-shadow: none; }
+.msg { border-radius: 12px; padding: 12px 14px; font-size: 13.5px; line-height: 1.7; margin-bottom: 6px; display: none; }
+.msg.err  { display: block; background: rgba(255,86,110,.12); border: 1px solid rgba(255,110,130,.30); color: #ffa7b4; }
+.msg.ok   { display: block; background: rgba(0,220,160,.12); border: 1px solid rgba(60,230,180,.30); color: #7ff0c8; }
+.msg.warn { display: block; background: rgba(255,190,70,.12); border: 1px solid rgba(255,200,90,.28); color: #ffd79a; }
+.done { text-align: center; padding: 26px 8px 10px; }
+.done .ico {
+  width: 74px; height: 74px; margin: 0 auto 18px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 34px; color: #06231c; font-weight: 700;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #9dffe0, #16d6a4 62%, #05a97f);
+  box-shadow: 0 0 0 8px rgba(20,220,170,.10), 0 0 34px rgba(20,220,170,.45);
+}
+.done .t { font-size: 19px; font-weight: 600; letter-spacing: 1px; margin-bottom: 10px; color: #eaf3ff; }
+.done .s { font-size: 13.5px; color: #8ba0c4; line-height: 1.85; }
+</style>
+</head>
+<body>
+<h1 style="position:absolute;left:-9999px;">设备客户登记</h1>
+
+<div class="demo-strip"><b>演示模式</b><span>当前为功能演示环境，展示设备客户登记的完整交互流程；提交仅作演示，不会产生真实数据。</span></div>
+
+<div class="card">
+  <div class="brand">
+    <div class="chip">DEVICE REGISTRATION · DEMO</div>
+    <div class="t">设备客户登记</div>
+    <div class="s">请核对设备信息，填写客户姓名和手机号</div>
+  </div>
+</div>
+
+<div class="card" style="animation-delay:.06s">
+  <div class="sec-title">设备信息</div>
+  <div class="info-row"><span class="k">设备序列号</span><span class="v">F2LXDEMO9Q7R</span></div>
+  <div class="info-row"><span class="k">设备型号</span><span class="v">iPhone 15 Pro</span></div>
+  <div class="info-row"><span class="k">存储容量</span><span class="v">256GB</span></div>
+  <div class="info-row"><span class="k">机身颜色</span><span class="v">原色钛金属</span></div>
+</div>
+
+<div class="card" style="animation-delay:.12s">
+  <div class="sec-title">客户登记</div>
+  <div class="msg" id="msg"></div>
+  <label><b>*</b>客户姓名</label>
+  <input type="text" id="name" maxlength="30" placeholder="请输入客户姓名" autocomplete="off">
+  <label><b>*</b>客户手机号</label>
+  <input type="tel" id="phone" maxlength="11" inputmode="numeric" placeholder="请输入客户手机号" autocomplete="off">
+  <label>商户代码 / 账号</label>
+  <input type="text" id="merchantCode" maxlength="50" placeholder="请输入商户代码（选填）" autocomplete="off">
+  <div class="tip">提交前请与客户当面核对姓名和手机号；提交后系统将自动匹配租赁订单并绑定本设备。</div>
+  <button class="btn" id="btn" type="button">提交登记</button>
+</div>
+
+<script>
+var msgBox = document.getElementById('msg');
+var btn = document.getElementById('btn');
+function showMsg(kind, text) {
+  msgBox.className = 'msg ' + kind;
+  msgBox.textContent = text;
+}
+btn.addEventListener('click', function () {
+  var name = document.getElementById('name').value.trim();
+  var phone = document.getElementById('phone').value.trim();
+  if (!name) { showMsg('err', '请输入客户姓名。'); return; }
+  if (!/^1\d{10}$/.test(phone)) { showMsg('err', '请输入正确的客户手机号。'); return; }
+  btn.disabled = true;
+  showMsg('warn', '正在提交…');
+  setTimeout(function () {
+    document.querySelector('body').innerHTML =
+      '<div class="card" style="margin-top:32px"><div class="done">' +
+      '<div class="ico">&#10003;</div>' +
+      '<div class="t">登记完成</div>' +
+      '<div class="s">演示数据：客户 ' + name + ' 已与示例设备关联。<br>真实设备将在提交成功后自动进入主屏幕。</div>' +
+      '</div></div>';
+  }, 800);
+});
+</script>
+</body>
+</html>
