@@ -21,8 +21,12 @@ targets:
       properties:
         CFBundleDisplayName: 设备客户登记
         UILaunchScreen: {}
+        # iPad 多任务要求声明全部四个方向（否则 ASC 上传直接被拒 90474）
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
         # 出口合规：APP 只做内网登记页展示，不使用加密算法，免年度出口合规申报
         ITSAppUsesNonExemptEncryption: false
     settings:
